@@ -1,5 +1,5 @@
 #include <Adafruit_Sensor.h>
-//#include <DHT.h>
+//#include <DHT.h>			Code is included for a future temperature sensor, not currently installed
 //#include <DHT_U.h>
 #include <SPI.h>
 #include <Wire.h>
@@ -16,18 +16,18 @@
 #define led3 LEDG
 #define houseOnePin 15
 #define houseTwoPin 16
-#define leftPosit 8
+#define leftPosit 8	//Hall effect Position sensors
 #define rightPosit 7
 
-#define DHTPIN 9     // Digital pin connected to the DHT sensor 
-#define DHTTYPE    DHT22     // DHT 22 (AM2302)
+//#define DHTPIN 9     // Digital pin connected to the DHT sensor 
+//#define DHTTYPE    DHT22     // DHT 22 (AM2302)
 
-#define adj (-5*3600)
+#define adj (-5*3600)	//UTC offset for NTP time. -5 is the UTC offset for the US East Coast in winter, -4 in summer.
 
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 32 // OLED display height, in pixels
 #define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
-#define SCREEN_ADDRESS 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
+#define SCREEN_ADDRESS 0x3C //< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
 
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
@@ -36,10 +36,6 @@ WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", adj);
 
 //DHT_Unified dht(DHTPIN, DHTTYPE);
-
-
-
-
 
 
 int dts = 20;
@@ -55,7 +51,7 @@ String currently;
 
 
 
-void Words(String message) {
+void Words(String message) {  //Prints 'message' to the screen, holds for 1 sec, clears screen
   display.clearDisplay();
   display.setTextSize(2); // Draw 2X-scale text
   display.setTextColor(SSD1306_WHITE);
@@ -69,7 +65,7 @@ void Words(String message) {
  
 
 
-void rlylrinitialize() {
+void rlylrinitialize() {	//Set up the LoRa txcvr. It will only run if the txcvr is not set up properly.
   String lora_setup;
   Serial1.write("AT+ADDRESS?\r\n");
     lora_setup = Serial1.readString();
@@ -93,7 +89,7 @@ void rlylrinitialize() {
   }
 
 
-void Pixels() {
+void Pixels() {		//Set up the display for output
   display.begin();
   delay(1000);
 
@@ -105,7 +101,7 @@ void Pixels() {
   display.display();
   }
 
-void FastWords(String message) {
+void FastWords(String message) {	//print 'message' to the screen, hold until next update, no program delay
   display.clearDisplay();
   display.setTextSize(2); // Draw 2X-scale text
   display.setTextColor(SSD1306_WHITE);
@@ -115,7 +111,7 @@ void FastWords(String message) {
   //delay(200);
   }
 
-void Temp() {
+void Temp() {		//return temperature in Celsius, currently not used, for future use
   sensors_event_t event;
   if (isnan(event.temperature)) {
     FastWords("T ERR");
@@ -139,7 +135,7 @@ void setup() {
   digitalWrite(houseTwoPin, LOW);
   digitalWrite(13, LOW);
   
-  Pixels();
+  Pixels();	//Init display
 
   // Initialize serial and wait for port to open:
   Serial.begin(115200);
@@ -173,7 +169,7 @@ void setup() {
 
   //dht.begin();
 
-  timeClient.begin();
+  timeClient.begin();		//Start the NTP internet time capture
   timeClient.setUpdateInterval(update);
 
 
@@ -182,10 +178,10 @@ void setup() {
 void loop() { 
 static int clockWatcher = millis(); 
 if (millis()-clockWatcher > 999) {
-		Currently();
+		Currently(); 	//format the time String
 		clockWatcher = millis();
 		}
-  ArduinoCloud.update();
+  ArduinoCloud.update(); 	//Check for input from the cloud dashboard
   house1=0;
   house2=0;
   middle=0;
@@ -194,14 +190,15 @@ if (millis()-clockWatcher > 999) {
   
 FastWords(currently);
 
-
+/*The left and right doors are in the same garage as the cloud MCU and the position sensors are wired directly to it. The North, Middle, South doors are
+	in another building and communicate with the cloud board via a 933mHz LoRa connection*/
 if (leftPosit == HIGH) {lpos = 1;}
   else {lpos = 0;}
 
 if (rightPosit == HIGH) {rpos = 1;}
   else {rpos = 0;}
 
-if (Serial1.available()) {
+if (Serial1.available()) {	//The LoRa txcvr is connected to the hard serial pins accessed through Serial1.
 String feedback = Serial1.readString();
   if (feedback.indexOf("SOUTHUP")>0) {sPos= 1;}
     else {sPos = 0;}
@@ -213,7 +210,7 @@ String feedback = Serial1.readString();
   }  
 }
 
-void Currently() {
+void Currently() {  		//Get the time from an NTP server, format a string for display
     timeClient.update();
 
 String h, m, s;
@@ -235,10 +232,10 @@ currently = (h+":"+m+":"+s);
   temperature = temp;  
   } */
 }
-
+//******************************************** Cloud Input Routines ***********************************************
 void onHouse1Change()  {
   
-  if (house1==1) {
+  if (house1==1) { 		//Fire transistor for  the left house door, print status msg on display
       //Serial.println("Left");
       digitalWrite(houseOnePin, HIGH);
       delay(1000);
@@ -248,7 +245,7 @@ void onHouse1Change()  {
     
 }
 
-void onHouse2Change()  {
+void onHouse2Change()  {		//Fire transistor for  the right house door, print status msg on display
   if (house2==1) {
      // Serial.println("Right");
       digitalWrite(houseTwoPin, HIGH);
@@ -258,7 +255,7 @@ void onHouse2Change()  {
   }
   
 }
-void onMiddleChange()  {
+void onMiddleChange()  {		//Send LoRa command to the middle door, print status msg on display
   if (middle==1) {
       Serial1.print("AT+SEND=2,6,MIDDLE\r\n");
       Serial.println(Serial1.readString());
@@ -269,7 +266,7 @@ void onMiddleChange()  {
   
 }
 
-void onNorthChange()  {
+void onNorthChange()  {			//Send LoRa command to the north door, print status msg on display
   if (north==1) {
       Serial1.print("AT+SEND=2,5,NORTH\r\n");
       Serial.println(Serial1.readString());
@@ -280,7 +277,7 @@ void onNorthChange()  {
   
 }
 
-void onSouthChange()  {
+void onSouthChange()  {		//Send LoRa command to the south door, print status msg on display
   if (south==1) {
       Serial1.print("AT+SEND=2,5,SOUTH\r\n");
       Serial.println(Serial1.readString());
